@@ -1,1 +1,2 @@
 python-pptx==1.0.2
+sentence-transformers==6.1.0
