@@ -1,14 +1,10 @@
 import sys
 from pathlib import Path
 
-from ragcervo.ingestao.conversor_pptx import converter_arquivo as converter_pptx
+from ragcervo.ingestao.conversor_docling import EXTENSOES, converter_arquivo
 
-# extensão do arquivo -> função que converte esse tipo
-CONVERSORES = {
-    ".pptx": converter_pptx,
-}
 
-def ingerir_pasta(pasta_entrada, pasta_saida):
+def ingerir_pasta(pasta_entrada, pasta_saida, pasta_imagens):
     pasta_entrada = Path(pasta_entrada)
     pasta_saida = Path(pasta_saida)
     pasta_saida.mkdir(parents=True, exist_ok=True)
@@ -22,15 +18,14 @@ def ingerir_pasta(pasta_entrada, pasta_saida):
         if arquivo.name.startswith("~$"):
             continue  # arquivo temporário que o PowerPoint cria com o original aberto
 
-        if extensao not in CONVERSORES:
+        if extensao not in EXTENSOES:
             print(f"pulado (formato não suportado): {arquivo.name}")
             continue
 
-        conversor = CONVERSORES[extensao]
         destino = pasta_saida / f"{arquivo.stem}.md"
 
         try:
-            markdown = conversor(arquivo)
+            markdown = converter_arquivo(arquivo, pasta_imagens)
             destino.write_text(markdown, encoding="utf-8")
             print(f"ok: {arquivo.name}")
             convertidos = convertidos + 1
@@ -42,4 +37,4 @@ def ingerir_pasta(pasta_entrada, pasta_saida):
 
 
 if __name__ == "__main__":
-    ingerir_pasta(sys.argv[1], sys.argv[2])
+    ingerir_pasta(sys.argv[1], sys.argv[2], sys.argv[3])
