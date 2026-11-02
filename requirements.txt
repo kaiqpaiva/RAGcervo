@@ -1,2 +1,4 @@
+docling==2.145.0
 python-pptx==1.0.2
+rapidocr==3.10.0
 sentence-transformers==6.1.0
