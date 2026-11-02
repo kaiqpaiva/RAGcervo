@@ -1,9 +1,12 @@
+import re
 import sys
 from pathlib import Path
 
 # limite em caracteres. É uma aproximação: o modelo de embedding conta tokens,
 # e depois a gente troca isso por uma contagem de tokens de verdade
 TAMANHO_MAXIMO = 1500
+
+IMAGEM = re.compile(r"!\[.*?\]\((.*?)\)")
 
 
 def dividir_em_secoes(markdown):
@@ -26,6 +29,9 @@ def dividir_em_secoes(markdown):
             paragrafos_atuais = []
         elif linha.startswith("# "):
             documento = linha[2:]
+        elif linha.startswith("|") and len(paragrafos_atuais) > 0 and paragrafos_atuais[-1].startswith("|"):
+            # as linhas de uma tabela ficam juntas em um parágrafo só
+            paragrafos_atuais[-1] = paragrafos_atuais[-1] + "\n" + linha
         else:
             paragrafos_atuais.append(linha)
 
@@ -34,6 +40,30 @@ def dividir_em_secoes(markdown):
         secoes.append((cabecalho_atual, paragrafos_atuais))
 
     return documento, secoes
+
+
+def dividir_tabelas(paragrafos, limite):
+    # tabela maior que o limite vira várias, cada uma repetindo o cabeçalho
+    resultado = []
+
+    for paragrafo in paragrafos:
+        if not paragrafo.startswith("|") or len(paragrafo) <= limite:
+            resultado.append(paragrafo)
+            continue
+
+        linhas = paragrafo.split("\n")
+        cabecalho = linhas[:2]
+        atuais = []
+
+        for linha in linhas[2:]:
+            if len("\n".join(cabecalho + atuais + [linha])) > limite and len(atuais) > 0:
+                resultado.append("\n".join(cabecalho + atuais))
+                atuais = []
+            atuais.append(linha)
+
+        resultado.append("\n".join(cabecalho + atuais))
+
+    return resultado
 
 
 def dividir_paragrafos(paragrafos, limite):
@@ -67,17 +97,22 @@ def criar_chunks(caminho):
     numero = 1
 
     for cabecalho, paragrafos in secoes:
-        partes = dividir_paragrafos(paragrafos, TAMANHO_MAXIMO)
+        partes = dividir_paragrafos(dividir_tabelas(paragrafos, TAMANHO_MAXIMO), TAMANHO_MAXIMO)
 
         for parte in partes:
+            # imagem não entra no embedding: o caminho fica guardado à parte
+            imagens = [IMAGEM.fullmatch(p).group(1) for p in parte if IMAGEM.fullmatch(p)]
+            textos = [p for p in parte if not IMAGEM.fullmatch(p)]
+
             # o contexto (documento > slide) vai dentro do texto de cada chunk
-            texto = f"{documento} > {cabecalho}\n\n" + "\n\n".join(parte)
+            texto = f"{documento} > {cabecalho}\n\n" + "\n\n".join(textos)
 
             chunk = {
                 "id": f"{documento}-{numero}",
                 "documento": documento,
                 "slide": cabecalho,
                 "texto": texto,
+                "imagens": imagens,
             }
             chunks.append(chunk)
             numero = numero + 1
